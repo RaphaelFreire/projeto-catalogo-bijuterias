@@ -41,6 +41,7 @@
     "@prisma/client": "^7.4.2",
     "@sdd/auth": "*",
     "@sdd/catalog": "*",
+    "@sdd/dashboard": "*",
     "@sdd/settings": "*",
     "@sdd/shared": "^1.0.0",
     "@types/bcrypt": "^6.0.0",
