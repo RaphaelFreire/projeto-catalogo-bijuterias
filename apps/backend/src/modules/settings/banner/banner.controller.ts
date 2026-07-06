@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import {
   Body,
   Controller,
@@ -12,11 +11,9 @@ import {
   Post,
   Put,
   Query,
-  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   Banner,
@@ -25,6 +22,7 @@ import {
   SaveBanner,
 } from '@sdd/catalog';
 import type { SaveBannerIn } from '@sdd/catalog';
+import { R2StorageService } from '../../../storage/r2-storage.service';
 import { PrismaBannerRepository } from './banner.prisma';
 
 interface BannerResponse {
@@ -45,11 +43,13 @@ interface BannerPageResponse {
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PER_PAGE = 20;
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 @Controller('banners')
 export class BannerController {
-  constructor(private readonly bannerRepository: PrismaBannerRepository) {}
+  constructor(
+    private readonly bannerRepository: PrismaBannerRepository,
+    private readonly storageService: R2StorageService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -110,14 +110,13 @@ export class BannerController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
-    @Req() request: Request,
   ): Promise<{ imageUrl: string }> {
     const filename = `${randomUUID()}${extname(file.originalname)}`;
-    const imageUrl = `${request.protocol}://${request.get('host')}/uploads/banners/${filename}`;
-
-    const dir = join(UPLOADS_ROOT, 'banners');
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, filename), file.buffer);
+    const imageUrl = await this.storageService.upload(
+      `banners/${filename}`,
+      file.buffer,
+      file.mimetype,
+    );
 
     return { imageUrl };
   }

@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import {
   Body,
   Controller,
@@ -11,15 +10,14 @@ import {
   Logger,
   Post,
   Put,
-  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SaveStoreSettings, STORE_SETTINGS_ID } from '@sdd/settings';
 import type { SaveStoreSettingsIn } from '@sdd/settings';
 import { Public } from '../../../shared/decorators/public.decorator';
+import { R2StorageService } from '../../../storage/r2-storage.service';
 import { PrismaStoreSettingsRepository } from './settings.prisma';
 
 interface SettingsResponse {
@@ -27,13 +25,14 @@ interface SettingsResponse {
   logoUrl: string | null;
 }
 
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
-
 @Controller('settings')
 export class SettingsController {
   private readonly logger = new Logger(SettingsController.name);
 
-  constructor(private readonly storeSettingsRepository: PrismaStoreSettingsRepository) {}
+  constructor(
+    private readonly storeSettingsRepository: PrismaStoreSettingsRepository,
+    private readonly storageService: R2StorageService,
+  ) {}
 
   @Public()
   @Get()
@@ -57,16 +56,15 @@ export class SettingsController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadLogo(
     @UploadedFile() file: Express.Multer.File,
-    @Req() request: Request,
   ): Promise<{ logoUrl: string }> {
     const existing = await this.storeSettingsRepository.findById(STORE_SETTINGS_ID);
 
     const filename = `${randomUUID()}${extname(file.originalname)}`;
-    const logoUrl = `${request.protocol}://${request.get('host')}/uploads/settings/${filename}`;
-
-    const dir = join(UPLOADS_ROOT, 'settings');
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, filename), file.buffer);
+    const logoUrl = await this.storageService.upload(
+      `settings/${filename}`,
+      file.buffer,
+      file.mimetype,
+    );
 
     const useCase = new SaveStoreSettings(this.storeSettingsRepository);
     await useCase.execute({ logoUrl });
@@ -94,9 +92,10 @@ export class SettingsController {
 
   private async removeLogoFile(logoUrl: string): Promise<void> {
     try {
-      const pathname = new URL(logoUrl).pathname;
-      const filePath = join(process.cwd(), pathname.replace(/^\//, ''));
-      await unlink(filePath);
+      const key = this.storageService.keyFromUrl(logoUrl);
+      if (key) {
+        await this.storageService.delete(key);
+      }
     } catch (error) {
       this.logger.warn(`Falha ao remover arquivo de logo ${logoUrl}: ${error}`);
     }

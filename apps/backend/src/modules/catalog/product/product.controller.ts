@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import {
   Body,
   Controller,
@@ -13,11 +12,9 @@ import {
   Post,
   Put,
   Query,
-  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   DeleteProduct,
@@ -28,6 +25,7 @@ import {
   SaveStock,
 } from '@sdd/catalog';
 import type { SaveProductIn } from '@sdd/catalog';
+import { R2StorageService } from '../../../storage/r2-storage.service';
 import { PrismaProductRepository } from './product.prisma';
 import { PrismaStockRepository } from '../stock/stock.prisma';
 
@@ -58,7 +56,6 @@ interface ProductPageResponse {
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PER_PAGE = 20;
-const UPLOADS_ROOT = join(process.cwd(), 'uploads');
 
 @Controller('products')
 export class ProductController {
@@ -67,6 +64,7 @@ export class ProductController {
   constructor(
     private readonly productRepository: PrismaProductRepository,
     private readonly stockRepository: PrismaStockRepository,
+    private readonly storageService: R2StorageService,
   ) {}
 
   @Post()
@@ -150,7 +148,6 @@ export class ProductController {
   async uploadImage(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
-    @Req() request: Request,
   ): Promise<{ images: string[] }> {
     const product = await this.productRepository.findById(id);
     if (!product) {
@@ -158,15 +155,15 @@ export class ProductController {
     }
 
     const filename = `${randomUUID()}${extname(file.originalname)}`;
-    const url = `${request.protocol}://${request.get('host')}/uploads/products/${id}/${filename}`;
+    const url = await this.storageService.upload(
+      `products/${id}/${filename}`,
+      file.buffer,
+      file.mimetype,
+    );
     const images = [...product.images, url];
 
     const candidate = product.clone({ images });
     candidate.validate();
-
-    const dir = join(UPLOADS_ROOT, 'products', id);
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, filename), file.buffer);
 
     const useCase = new SaveProduct(this.productRepository);
     await useCase.execute(this.toSaveInput(product, { images }));
@@ -191,9 +188,10 @@ export class ProductController {
     await useCase.execute(this.toSaveInput(product, { images }));
 
     try {
-      const pathname = new URL(body.url).pathname;
-      const filePath = join(process.cwd(), pathname.replace(/^\//, ''));
-      await unlink(filePath);
+      const key = this.storageService.keyFromUrl(body.url);
+      if (key) {
+        await this.storageService.delete(key);
+      }
     } catch (error) {
       this.logger.warn(`Falha ao remover arquivo de imagem ${body.url}: ${error}`);
     }

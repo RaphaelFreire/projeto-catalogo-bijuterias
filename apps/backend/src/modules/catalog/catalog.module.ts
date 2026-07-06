@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DbModule } from '../../db/db.module';
+import { StorageModule } from '../../storage/storage.module';
 import { SettingsModule } from '../settings/settings.module';
 import { ProductController } from './product/product.controller';
 import { PrismaProductRepository } from './product/product.prisma';
@@ -12,7 +13,7 @@ import { OrderController } from './order/order.controller';
 import { PrismaOrderRepository } from './order/order.prisma';
 
 @Module({
-  imports: [DbModule, SettingsModule],
+  imports: [DbModule, StorageModule, SettingsModule],
   controllers: [
     ProductController,
     CategoryController,
