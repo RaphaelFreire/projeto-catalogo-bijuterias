@@ -1,0 +1,98 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Leitura antes de qualquer configuração (200, whatsappNumber: null) — sem JWT, rota pública
+GET {{host}}/settings
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-settings-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-settings-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Atualizar sem JWT é bloqueado (401)
+PUT {{host}}/settings
+Content-Type: application/json
+
+{
+  "whatsappNumber": "+5511999998888"
+}
+
+### Atualizar configuração (204) — cria o registro único na primeira chamada
+PUT {{host}}/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "whatsappNumber": "+5511999998888"
+}
+
+### Leitura após configurar (200, whatsappNumber preenchido) — continua pública
+GET {{host}}/settings
+
+### Atualizar novamente (204) — mesma chamada atualiza o registro existente
+PUT {{host}}/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "whatsappNumber": "+5511888887777"
+}
+
+### Atualizar com número inválido (422, errors[] inclui settings.whatsappNumber.phone)
+PUT {{host}}/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "whatsappNumber": "11999998888"
+}
+
+### Upload de logo sem JWT é bloqueado (401)
+POST {{host}}/settings/logo
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary--
+
+### Upload de logo (201, retorna { logoUrl } absoluta)
+POST {{host}}/settings/logo
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="logo.png"
+Content-Type: image/png
+
+< ./product-image-sample.png
+------WebKitFormBoundary--
+
+### Leitura reflete a logo configurada (200, logoUrl preenchida)
+GET {{host}}/settings
+
+### Remover logo sem JWT é bloqueado (401)
+DELETE {{host}}/settings/logo
+
+### Remover logo (204)
+DELETE {{host}}/settings/logo
+Authorization: Bearer {{token}}
+
+### Leitura após remover (200, logoUrl: null)
+GET {{host}}/settings

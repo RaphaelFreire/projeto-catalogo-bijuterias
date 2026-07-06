@@ -1,0 +1,116 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar usuário (201)
+# @name createUser
+POST {{host}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Maria Silva",
+  "email": "maria-{{scenarioVersion}}@example.com",
+  "password": "Outra@456"
+}
+
+### Listar paginado (200, devolve { items, total, page, perPage })
+GET {{host}}/users?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Obter por id (200, objeto { id, name, email } sem password)
+# Substitua o id abaixo por um id existente no banco antes de rodar.
+@userId = REPLACE_WITH_EXISTING_USER_ID
+GET {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### Atualizar usuário (204) — troca nome/e-mail e mantém senha
+PUT {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Maria Atualizada",
+  "email": "maria-edit-{{scenarioVersion}}@example.com"
+}
+
+### Atualizar usuário trocando senha (204)
+PUT {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Maria Atualizada",
+  "email": "maria-edit-{{scenarioVersion}}@example.com",
+  "password": "NovaSenha@789"
+}
+
+### Excluir usuário existente (204)
+DELETE {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### Excluir usuário inexistente (404, errors[] = [user.not-found])
+DELETE {{host}}/users/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Obter usuário inexistente (404, errors[] = [user.not-found])
+GET {{host}}/users/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Criar usuário com senha fraca (422, errors[] inclui user.password.strong.password)
+POST {{host}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Joao Santos",
+  "email": "joao-{{scenarioVersion}}@example.com",
+  "password": "123"
+}
+
+### Criar usuário sem campos obrigatórios (422)
+POST {{host}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+}
+
+### Acesso sem JWT é bloqueado (401)
+GET {{host}}/users
+
+### Listar sem JWT é bloqueado (401)
+GET {{host}}/users?page=1&perPage=20
+
+### Criar sem JWT é bloqueado (401)
+POST {{host}}/users
+Content-Type: application/json
+
+{
+  "name": "Sem Token",
+  "email": "sem-token-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}

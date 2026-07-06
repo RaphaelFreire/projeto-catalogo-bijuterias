@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate --workspace @sdd/backend
+
+      - name: Build
+        run: npx turbo run build
+
+      - name: Check types
+        run: npx turbo run check-types
+
+      # @sdd/frontend pode falhar aqui por um bug de hoisting npm pré-existente
+      # (eslint-config-next resolvido na raiz sem encontrar next, aninhado em
+      # apps/frontend/node_modules desde antes do workspace existir) — conhecido,
+      # documentado em openspec/changes/archive/*-consertar-lint-ci-cobertura,
+      # fora do escopo dessa change. Os demais workspaces devem passar normalmente.
+      - name: Lint
+        run: npx turbo run lint
+
+      - name: Test
+        run: npx turbo run test

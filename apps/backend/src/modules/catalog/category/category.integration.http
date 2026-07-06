@@ -1,0 +1,104 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-cat-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-cat-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar categoria (201)
+# @name createCategory
+POST {{host}}/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camisetas"
+}
+
+### Listar paginado (200, devolve { items, total, page, perPage })
+GET {{host}}/categories?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Obter por id (200)
+# Substitua o id abaixo por um id existente no banco antes de rodar.
+@categoryId = REPLACE_WITH_EXISTING_CATEGORY_ID
+GET {{host}}/categories/{{categoryId}}
+Authorization: Bearer {{token}}
+
+### Atualizar categoria (204)
+PUT {{host}}/categories/{{categoryId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camisetas e Regatas"
+}
+
+### Excluir categoria existente (204)
+DELETE {{host}}/categories/{{categoryId}}
+Authorization: Bearer {{token}}
+
+### Excluir categoria inexistente (404, errors[] inclui category.not_found)
+DELETE {{host}}/categories/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Atualizar categoria inexistente (comportamento save-category: cria com o id informado)
+PUT {{host}}/categories/00000000-0000-4000-8000-000000000001
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Categoria Criada Via Put"
+}
+
+### Obter categoria inexistente (404, errors[] inclui category.not_found)
+GET {{host}}/categories/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Criar categoria com nome curto (422, errors[] inclui category.name.min.length)
+POST {{host}}/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "A"
+}
+
+### Criar categoria sem nome (422)
+POST {{host}}/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+}
+
+### Listar sem JWT é bloqueado (401)
+GET {{host}}/categories?page=1&perPage=20
+
+### Criar sem JWT é bloqueado (401)
+POST {{host}}/categories
+Content-Type: application/json
+
+{
+  "name": "Sem Token"
+}

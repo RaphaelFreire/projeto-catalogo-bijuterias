@@ -1,0 +1,71 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-dashboard-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-dashboard-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Resumo (200) — estoque total e pedidos/faturamento
+GET {{host}}/dashboard/summary
+Authorization: Bearer {{token}}
+
+### Estoque crítico (200) — até 5 produtos com quantity === 1
+GET {{host}}/dashboard/critical-stock
+Authorization: Bearer {{token}}
+
+### Estoque crítico com limite customizado (200)
+GET {{host}}/dashboard/critical-stock?limit=3
+Authorization: Bearer {{token}}
+
+### Pedidos por dia (200)
+GET {{host}}/dashboard/orders-by-period?granularity=day
+Authorization: Bearer {{token}}
+
+### Pedidos por semana (200)
+GET {{host}}/dashboard/orders-by-period?granularity=week
+Authorization: Bearer {{token}}
+
+### Pedidos por mês (200)
+GET {{host}}/dashboard/orders-by-period?granularity=month
+Authorization: Bearer {{token}}
+
+### Pedidos por período com intervalo explícito (200)
+GET {{host}}/dashboard/orders-by-period?granularity=day&from=2026-01-01T00:00:00.000Z&to=2026-12-31T23:59:59.999Z
+Authorization: Bearer {{token}}
+
+### Granularidade inválida (422, errors[] inclui dashboard.granularity.invalid)
+GET {{host}}/dashboard/orders-by-period?granularity=year
+Authorization: Bearer {{token}}
+
+### Granularidade ausente (422, errors[] inclui dashboard.granularity.invalid)
+GET {{host}}/dashboard/orders-by-period
+Authorization: Bearer {{token}}
+
+### Resumo sem JWT é bloqueado (401)
+GET {{host}}/dashboard/summary
+
+### Estoque crítico sem JWT é bloqueado (401)
+GET {{host}}/dashboard/critical-stock
+
+### Pedidos por período sem JWT é bloqueado (401)
+GET {{host}}/dashboard/orders-by-period?granularity=day

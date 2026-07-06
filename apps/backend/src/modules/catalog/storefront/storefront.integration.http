@@ -1,0 +1,62 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Listar vitrine sem JWT (200 — rota pública)
+GET {{host}}/storefront/products
+
+### Cadastrar usuário "owner" para autenticar (201) — necessário só para criar produtos de teste
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-storefront-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-storefront-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar produto ativo (201) — deve aparecer na vitrine
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Produto Vitrine Ativo",
+  "price": 49.90,
+  "status": "active"
+}
+
+### Criar produto rascunho (201) — NÃO deve aparecer na vitrine
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Produto Vitrine Rascunho",
+  "price": 19.90,
+  "status": "draft"
+}
+
+### Listar vitrine novamente (200) — confirma que só o produto "active" aparece,
+### e que ele vem com quantity: 0 (estoque criado automaticamente na criação do produto)
+GET {{host}}/storefront/products
+
+### Listagem pública de banners (200, sem JWT, ordenada por position)
+GET {{host}}/storefront/banners
+
+### Listagem pública de categorias (200, sem JWT) — usada pelo filtro de categoria da vitrine,
+### não deve depender do endpoint administrativo GET /categories (autenticado)
+GET {{host}}/storefront/categories

@@ -1,0 +1,115 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastro com sucesso (201)
+# @name registerSuccess
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Joao Silva",
+  "email": "user-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Cadastro com email duplicado (409, errors[] = [user.email.already-registered])
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Joao Silva",
+  "email": "user-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Cadastro com senha fraca (422, errors[] inclui user.password.strong.password)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Maria Souza",
+  "email": "weak-{{scenarioVersion}}@example.com",
+  "password": "12345"
+}
+
+### Cadastro com email mal formatado (422, errors[] inclui user.email.invalid.email)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Maria Souza",
+  "email": "not-an-email",
+  "password": "Strong@123"
+}
+
+### Cadastro com nome curto (422, errors[] inclui user.name.min.length e user.name.person.name)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Jo",
+  "email": "short-name-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Cadastro com múltiplos campos inválidos (422, errors[] com várias chaves)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "",
+  "email": "broken",
+  "password": "abc"
+}
+
+### Cadastro sem campos obrigatórios (422, errors[] com required em cada campo)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+}
+
+### Login com credenciais válidas (200, devolve { token, user })
+# Pré-requisito: rodar antes o cadastro `registerSuccess` acima para criar o usuário desta sessão.
+# @name loginSuccess
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "user-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login com e-mail inexistente (401, errors[] = [user.credentials.invalid])
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "nao-existe-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login com senha incorreta (401, errors[] = [user.credentials.invalid])
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "user-{{scenarioVersion}}@example.com",
+  "password": "Errada@456"
+}
+
+### Login com e-mail mal formatado (422, errors[] inclui user.email.invalid.email)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "password": "Strong@123"
+}
+
+### Login sem campos obrigatórios (422, errors[] com required em cada campo)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+}

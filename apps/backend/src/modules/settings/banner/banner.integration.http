@@ -1,0 +1,202 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-banner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-banner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar categoria para usar nos banners (201)
+# @name createCategory
+POST {{host}}/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Categoria Banner"
+}
+
+### Upload de imagem de banner (201, retorna { imageUrl } absoluta, sem precisar do banner já existir)
+POST {{host}}/banners/upload-image
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="banner.png"
+Content-Type: image/png
+
+< ./product-image-sample.png
+------WebKitFormBoundary--
+
+### Criar banner 1 (201)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner1.png",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner 2 (201)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner2.png",
+  "position": 1,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner 3 (201)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner3.png",
+  "position": 2,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner 4 (422, errors[] inclui banner.max_reached)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner4.png",
+  "position": 3,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Listagem ordenada por position (200)
+GET {{host}}/banners?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Atualizar banner (204) — permitido mesmo com 3 banners existentes
+# Substitua o id abaixo por um id de banner existente.
+@bannerId = REPLACE_WITH_EXISTING_BANNER_ID
+PUT {{host}}/banners/{{bannerId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner1-atualizado.png",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner com categoria inexistente (erro — FK inválida)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner.png",
+  "position": 0,
+  "categoryId": "00000000-0000-4000-8000-000000000000"
+}
+
+### Excluir banner existente (204)
+DELETE {{host}}/banners/{{bannerId}}
+Authorization: Bearer {{token}}
+
+### Excluir banner inexistente (404, errors[] inclui banner.not_found)
+DELETE {{host}}/banners/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Listagem pública da vitrine (200, sem JWT, ordenada por position)
+GET {{host}}/storefront/banners
+
+### Acesso sem JWT em /banners é bloqueado (401)
+GET {{host}}/banners?page=1&perPage=20
+
+### Criar banner com linkUrl como destino, sem categoryId (201)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner-link.png",
+  "position": 0,
+  "linkUrl": "https://wa.me/5511999998888"
+}
+
+### Criar banner sem categoryId e sem linkUrl (422, errors[] inclui banner.destination.required)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner-sem-destino.png",
+  "position": 0
+}
+
+### Criar banner com categoryId e linkUrl juntos (422, errors[] inclui banner.destination.exclusive)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner-dois-destinos.png",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID",
+  "linkUrl": "https://wa.me/5511999998888"
+}
+
+### Criar banner com imageUrlMobile (201) — imagem específica para telas pequenas
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner-desktop.png",
+  "imageUrlMobile": "https://cdn.example.com/banner-mobile.png",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner sem imageUrlMobile (201) — permanece null
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner-so-desktop.png",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar banner com imageUrlMobile inválida (422, errors[] inclui banner.imageUrlMobile.url)
+POST {{host}}/banners
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imageUrl": "https://cdn.example.com/banner.png",
+  "imageUrlMobile": "not-a-url",
+  "position": 0,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}

@@ -1,0 +1,141 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-order-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-order-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar produto com estoque suficiente (201) — quantity define o estoque já na criação
+# @name createProduct
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Produto Para Pedido",
+  "price": 25.00,
+  "status": "active",
+  "quantity": 5
+}
+
+###
+@productId = {{createProduct.response.body.id}}
+
+### Checkout com estoque suficiente (201, retorna { code }) — desconta 2 unidades
+# @name checkoutOk
+POST {{host}}/storefront/checkout
+Content-Type: application/json
+
+{
+  "customerName": "Cliente Teste",
+  "items": [
+    { "productId": "{{productId}}", "quantity": 2 }
+  ]
+}
+
+###
+@orderCode = {{checkoutOk.response.body.code}}
+
+### Consultar estoque após o checkout (200) — confirma que descontou 2 unidades (5 -> 3)
+GET {{host}}/stock?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Consulta pública do pedido pelo código (200, sem JWT)
+GET {{host}}/storefront/orders/{{orderCode}}
+
+### Consulta pública de código inexistente (404, errors[] inclui order.not_found)
+GET {{host}}/storefront/orders/ZZZZZZZZ
+
+### Checkout com estoque insuficiente (422, errors[] inclui order.stock.insufficient,
+### details.insufficientItems lista o productId) — pede 100 unidades de um produto com só 3 em estoque
+POST {{host}}/storefront/checkout
+Content-Type: application/json
+
+{
+  "customerName": "Cliente Teste 2",
+  "items": [
+    { "productId": "{{productId}}", "quantity": 100 }
+  ]
+}
+
+### Consultar estoque novamente (200) — confirma que NADA foi descontado no checkout rejeitado (continua 3)
+GET {{host}}/stock?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Checkout com produto inexistente (422, errors[] inclui order.stock.insufficient)
+POST {{host}}/storefront/checkout
+Content-Type: application/json
+
+{
+  "customerName": "Cliente Teste 3",
+  "items": [
+    { "productId": "00000000-0000-4000-8000-000000000000", "quantity": 1 }
+  ]
+}
+
+### Listagem paginada de pedidos no admin (200, autenticado)
+GET {{host}}/orders?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Obter pedido por id no admin (200, autenticado)
+# Substitua o id abaixo por um id de pedido existente (ver listagem acima).
+@orderId = REPLACE_WITH_EXISTING_ORDER_ID
+GET {{host}}/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+### Obter pedido inexistente no admin (404, errors[] inclui order.not_found)
+GET {{host}}/orders/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Listagem de pedidos sem JWT é bloqueada (401)
+GET {{host}}/orders?page=1&perPage=20
+
+### Checkout sem JWT funciona normalmente (rota pública) — já coberto acima em "Checkout com estoque suficiente"
+
+### Consulta pública de pedido sem JWT funciona normalmente (rota pública) — já coberto acima
+
+### Confirmar pagamento de um pedido existente (204) — substitua @orderId por um id real
+POST {{host}}/orders/{{orderId}}/confirm-payment
+Authorization: Bearer {{token}}
+
+### Confirmar leitura reflete paymentConfirmed: true (200)
+GET {{host}}/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+### Confirmar pagamento de pedido inexistente (404, errors[] inclui order.not_found)
+POST {{host}}/orders/00000000-0000-4000-8000-000000000000/confirm-payment
+Authorization: Bearer {{token}}
+
+### Confirmar pagamento sem JWT é bloqueado (401)
+POST {{host}}/orders/{{orderId}}/confirm-payment
+
+### Excluir pedido existente (204)
+DELETE {{host}}/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+### Excluir pedido inexistente (404, errors[] inclui order.not_found)
+DELETE {{host}}/orders/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Excluir pedido sem JWT é bloqueado (401)
+DELETE {{host}}/orders/{{orderId}}

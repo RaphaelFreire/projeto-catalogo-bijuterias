@@ -1,0 +1,119 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-stock-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-stock-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar produto para associar estoque manualmente (201)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Produto Para Estoque Manual",
+  "price": 10.00,
+  "status": "draft"
+}
+# Nota: a criação acima já cria um registro de estoque automaticamente (quantidade 0).
+# Para os cenários abaixo, substitua @productId por um produto criado manualmente sem
+# passar pelo POST /products (ex.: produto legado importado), ou exclua o estoque
+# criado automaticamente antes de testar a criação manual.
+
+### Listar paginado (200, devolve { items, total, page, perPage }, cada item com productName)
+GET {{host}}/stock?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Obter por id (200, inclui productName)
+# Substitua o id abaixo por um id de estoque existente no banco antes de rodar.
+@stockId = REPLACE_WITH_EXISTING_STOCK_ID
+GET {{host}}/stock/{{stockId}}
+Authorization: Bearer {{token}}
+
+### Atualizar quantidade (204)
+PUT {{host}}/stock/{{stockId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "quantity": 42
+}
+
+### Atualizar com quantidade negativa (422, errors[] inclui stock.quantity.min.value)
+PUT {{host}}/stock/{{stockId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "quantity": -1
+}
+
+### Excluir estoque existente (204)
+DELETE {{host}}/stock/{{stockId}}
+Authorization: Bearer {{token}}
+
+### Excluir estoque inexistente (404, errors[] inclui stock.not_found)
+DELETE {{host}}/stock/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Criar estoque manual para produto sem estoque (201)
+# Substitua @productId por um produto que não tenha estoque (ex.: após excluir o estoque acima)
+@productId = REPLACE_WITH_PRODUCT_ID_WITHOUT_STOCK
+POST {{host}}/stock
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": "{{productId}}",
+  "quantity": 5
+}
+
+### Criar estoque para produto que já tem estoque (409, conflito)
+POST {{host}}/stock
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": "{{productId}}",
+  "quantity": 5
+}
+
+### Obter estoque inexistente (404, errors[] inclui stock.not_found)
+GET {{host}}/stock/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Listar sem JWT é bloqueado (401)
+GET {{host}}/stock?page=1&perPage=20
+
+### Criar sem JWT é bloqueado (401)
+POST {{host}}/stock
+Content-Type: application/json
+
+{
+  "productId": "00000000-0000-4000-8000-000000000000",
+  "quantity": 1
+}
+
+### Nota: `decrementIfAvailable` (desconto atômico usado pelo checkout) é testado indiretamente
+### em `order.integration.http` — decremento bem-sucedido e decremento rejeitado por estoque
+### insuficiente, ambos via `POST /storefront/checkout`.

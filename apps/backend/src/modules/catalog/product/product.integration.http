@@ -1,0 +1,208 @@
+@host = http://localhost:4000
+@scenarioVersion = {{$timestamp}}
+
+### Cadastrar usuário "owner" para autenticar (201)
+# @name registerOwner
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Owner",
+  "email": "owner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+### Login para obter token (200)
+# @name loginOwner
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "owner-{{scenarioVersion}}@example.com",
+  "password": "Strong@123"
+}
+
+###
+@token = {{loginOwner.response.body.token}}
+
+### Criar categoria para usar nos cenários abaixo (201)
+# @name createCategory
+POST {{host}}/categories
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camisetas"
+}
+
+### Criar produto (201) — com categoria
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camiseta Branca",
+  "description": "Camiseta básica de algodão",
+  "price": 99.90,
+  "status": "active",
+  "bestSeller": true,
+  "dailyDeal": false,
+  "lastUnits": false,
+  "categoryId": "REPLACE_WITH_EXISTING_CATEGORY_ID"
+}
+
+### Criar produto sem campos opcionais (201) — defaults dos booleanos como false, description e categoryId null
+# @name createProductNoCategory
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Caneca Preta",
+  "price": 29.50,
+  "status": "draft"
+}
+
+### Verificar que o estoque nasceu junto com o produto acima (200, quantity 0)
+# Substitua o id abaixo pelo id do produto criado em createProductNoCategory.
+GET {{host}}/stock?page=1&perPage=50
+Authorization: Bearer {{token}}
+
+### Criar produto com categoryId inexistente (erro — FK inválida)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Produto Categoria Inexistente",
+  "price": 10.00,
+  "status": "active",
+  "categoryId": "00000000-0000-4000-8000-000000000000"
+}
+
+### Listar paginado (200, devolve { items, total, page, perPage })
+GET {{host}}/products?page=1&perPage=20
+Authorization: Bearer {{token}}
+
+### Obter por id (200, objeto completo: id, name, description, price, status, bestSeller, dailyDeal, lastUnits)
+# Substitua o id abaixo por um id existente no banco antes de rodar.
+@productId = REPLACE_WITH_EXISTING_PRODUCT_ID
+GET {{host}}/products/{{productId}}
+Authorization: Bearer {{token}}
+
+### Atualizar produto (204)
+PUT {{host}}/products/{{productId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camiseta Atualizada",
+  "description": "Nova descrição",
+  "price": 119.90,
+  "status": "inactive",
+  "bestSeller": false,
+  "dailyDeal": true,
+  "lastUnits": false
+}
+
+### Excluir produto existente (204)
+DELETE {{host}}/products/{{productId}}
+Authorization: Bearer {{token}}
+
+### Excluir produto inexistente (404, errors[] inclui product.not_found)
+DELETE {{host}}/products/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Atualizar produto inexistente (não cria com id desconhecido em PUT? cria via save-product) — registrar comportamento
+PUT {{host}}/products/00000000-0000-4000-8000-000000000001
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Atualiza-ou-cria",
+  "price": 10.00,
+  "status": "draft"
+}
+
+### Obter produto inexistente (404, errors[] inclui product.not_found)
+GET {{host}}/products/00000000-0000-4000-8000-000000000000
+Authorization: Bearer {{token}}
+
+### Criar produto com nome curto (422, errors[] inclui product.name.min.length)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "A",
+  "price": 10.00,
+  "status": "active"
+}
+
+### Criar produto com preço negativo (422, errors[] inclui product.price.min.value)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camiseta",
+  "price": -1,
+  "status": "active"
+}
+
+### Criar produto com status fora do enum (422, errors[] inclui product.status.in)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Camiseta",
+  "price": 10.00,
+  "status": "archived"
+}
+
+### Criar produto sem campos obrigatórios (422)
+POST {{host}}/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+}
+
+### Upload de imagem (201, multipart) — retorna { images: string[] } atualizada
+# Rest Client suporta multipart via arquivo local; ajuste o caminho antes de rodar.
+POST {{host}}/products/{{productId}}/images
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="produto.png"
+Content-Type: image/png
+
+< ./product-image-sample.png
+------WebKitFormBoundary--
+
+### Remoção de imagem (204) — remove a URL da lista e apaga o arquivo do disco
+DELETE {{host}}/products/{{productId}}/images
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "url": "/uploads/products/REPLACE_WITH_PRODUCT_ID/REPLACE_WITH_FILENAME.png"
+}
+
+### Listar sem JWT é bloqueado (401)
+GET {{host}}/products?page=1&perPage=20
+
+### Criar sem JWT é bloqueado (401)
+POST {{host}}/products
+Content-Type: application/json
+
+{
+  "name": "Sem Token",
+  "price": 10,
+  "status": "active"
+}
+
+### Excluir sem JWT é bloqueado (401)
+DELETE {{host}}/products/00000000-0000-4000-8000-000000000000

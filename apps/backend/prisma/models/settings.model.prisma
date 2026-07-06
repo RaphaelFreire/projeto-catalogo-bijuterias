@@ -1,0 +1,10 @@
+model StoreSettings {
+  id             String    @id
+  whatsappNumber String?
+  logoUrl        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  @@map("store_settings")
+}
